@@ -22,7 +22,7 @@ import java.util.Set;
 import com.tangosol.util.filter.IndexAwareFilter;
 
 /**
- * SPI interface to be implemented by provided of custom index engine.
+ * SPI interface to be implemented by provider of custom index engine.
  * @author Alexey Ragozin (alexey.ragozin@gmail.com)
  *
  * @param <I> type of index instance
