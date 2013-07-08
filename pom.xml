@@ -67,6 +67,12 @@
             <version>4.10</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.gridkit.coherence-tools</groupId>
+            <artifactId>chtest</artifactId>
+            <version>0.2.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
