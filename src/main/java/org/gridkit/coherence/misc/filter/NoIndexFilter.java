@@ -17,6 +17,7 @@
 package org.gridkit.coherence.misc.filter;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.Map.Entry;
 
 import com.tangosol.io.pof.PofReader;
@@ -37,7 +38,9 @@ import com.tangosol.util.filter.PartitionedFilter;
  * 
  * @author Alexey Ragozin (alexey.ragozin@gmail.com)
  */
-public class NoIndexFilter implements EntryFilter, PortableObject {
+public class NoIndexFilter implements EntryFilter, PortableObject, Serializable {
+
+	private static final long serialVersionUID = 20130707L;
 
 	public static Filter wrap(Filter filter) {
 		if (filter instanceof PartitionedFilter) {

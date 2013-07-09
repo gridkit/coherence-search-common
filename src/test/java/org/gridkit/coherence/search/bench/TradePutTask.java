@@ -12,6 +12,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.gridkit.vicluster.ViExecutor;
 
@@ -67,6 +68,7 @@ public class TradePutTask implements Runnable, Serializable {
 		}
 		
 		final int total = tasks.size();
+		final AtomicInteger taskC = new AtomicInteger();
 		final Queue<TradePutTask> queue = new ArrayBlockingQueue<TradePutTask>(tasks.size(), false, tasks);
 		
 		List<Future<Void>> futures = new ArrayList<Future<Void>>();		
@@ -78,7 +80,8 @@ public class TradePutTask implements Runnable, Serializable {
 						TradePutTask task = queue.poll();
 						if (task != null) {
 							target.exec(task);
-							System.out.println("Completed [" + task.from + ", " + task.to + ")");
+							int n = taskC.incrementAndGet();
+							System.out.println("Upload progress " + (100d * n / total) + "%");
 						}
 						else {
 							return null;

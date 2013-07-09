@@ -1,6 +1,7 @@
 package org.gridkit.coherence.search.bench;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -11,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import org.gridkit.coherence.chtest.CacheConfig;
 import org.gridkit.coherence.chtest.CacheConfig.DistributedScheme;
 import org.gridkit.coherence.chtest.DisposableCohCloud;
+import org.gridkit.coherence.misc.filter.NoIndexFilter;
 import org.gridkit.vicluster.ViExecutor;
 import org.gridkit.vicluster.telecontrol.jvm.JvmProps;
 import org.junit.Before;
@@ -20,7 +22,9 @@ import org.junit.Test;
 import com.tangosol.net.CacheFactory;
 import com.tangosol.net.NamedCache;
 import com.tangosol.util.Filter;
+import com.tangosol.util.ValueExtractor;
 import com.tangosol.util.aggregator.Count;
+import com.tangosol.util.extractor.MultiExtractor;
 import com.tangosol.util.extractor.ReflectionExtractor;
 import com.tangosol.util.filter.AndFilter;
 import com.tangosol.util.filter.EqualsFilter;
@@ -136,10 +140,13 @@ public class FilterPerformanceMicrobench {
 
 				long time;
 				time = calculate_query_time(sideAndTagFilter);
-				System.out.println("Exec time for [sideAndTagFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				System.out.println("Exec time for [sideAndTagFilter] , no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 
 				time = calculate_query_time(tagAndSideFilter);
-				System.out.println("Exec time for [tagAndSideFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				System.out.println("Exec time for [tagAndSideFilter] , no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				
+				time = calculate_query_time(tagAndSideFilter);
+				System.out.println("Exec time for [tagAndSideFilter] , no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 				
 				cache.addIndex(new ReflectionExtractor("getTag"), false, null);
 
@@ -162,11 +169,10 @@ public class FilterPerformanceMicrobench {
 		});
 	}
 
-	
 	@Test
 	public void verify_no_index_hint_impact() throws InterruptedException, ExecutionException {
 		TestDataGenerator tg = configureGenerator(1000000);
-		JvmProps.addJvmArg(cloud.node("storage-*"), "|-Xmx1024m|-Xms1024m|-XX:+UseConcMarkSweepGC");
+		JvmProps.addJvmArg(cloud.node("storage-*"), "|-Xmx1024m|-Xms1024m|-XX:+UseConcMarkSweepGC|-XX:CMSInitiatingOccupancyFraction=60|-XX:+UseCMSInitiatingOccupancyOnly");
 		
 		initCacheData(2, tg);
 		
@@ -175,6 +181,8 @@ public class FilterPerformanceMicrobench {
 
 		final Filter sideAndTickerFilter = new AndFilter(sideFilter, tickerFilter);
 		final Filter tickerAndSideFilter = new AndFilter(tickerFilter, sideFilter);
+		final Filter tickerAndHintedSideFilter = new AndFilter(tickerFilter, NoIndexFilter.wrap(sideFilter));
+		final Filter hintedSideAndTickerFilter = new AndFilter(NoIndexFilter.wrap(sideFilter), tickerFilter);
 		
 		cloud.node("client").exec(new Callable<Void>() {
 			@Override
@@ -189,26 +197,76 @@ public class FilterPerformanceMicrobench {
 				time = calculate_query_time(tickerAndSideFilter);
 				System.out.println("Exec time for [tickerAndSideFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 				
-				cache.addIndex(new ReflectionExtractor("getTag"), false, null);
+				cache.addIndex(new ReflectionExtractor("getTicker"), false, null);
 
 				time = calculate_query_time(sideAndTickerFilter);
-				System.out.println("Exec time for [sideAndTickerFilter] , index by tag - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				System.out.println("Exec time for [sideAndTickerFilter] , index by ticker - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 
 				time = calculate_query_time(tickerAndSideFilter);
-				System.out.println("Exec time for [tickerAndSideFilter] , index by tag - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				System.out.println("Exec time for [tickerAndSideFilter] , index by ticker - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				time = calculate_query_time(tickerAndHintedSideFilter);
+				System.out.println("Exec time for [tickerAndHintedSideFilter] , index by ticker - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 
 				cache.addIndex(new ReflectionExtractor("getSide"), false, null);
 				
 				time = calculate_query_time(sideAndTickerFilter);
-				System.out.println("Exec time for [sideAndTickerFilter] , index by tag & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				System.out.println("Exec time for [sideAndTickerFilter] , index by ticker & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 				
 				time = calculate_query_time(tickerAndSideFilter);
-				System.out.println("Exec time for [tickerAndSideFilter] , index by tag & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				System.out.println("Exec time for [tickerAndSideFilter] , index by ticker & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				time = calculate_query_time(tickerAndHintedSideFilter);
+				System.out.println("Exec time for [tickerAndHintedSideFilter] , index by ticker & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				
+				time = calculate_query_time(hintedSideAndTickerFilter);
+				System.out.println("Exec time for [hintedSideAndTickerFilter] , index by ticker & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
 
 				return null;
 			}
 		});
 	}
+
+	@Test
+	public void verify_composite_index() throws InterruptedException, ExecutionException {
+		TestDataGenerator tg = configureGenerator(1000000);
+		JvmProps.addJvmArg(cloud.node("storage-*"), "|-Xmx1024m|-Xms1024m|-XX:+UseConcMarkSweepGC|-XX:CMSInitiatingOccupancyFraction=60|-XX:+UseCMSInitiatingOccupancyOnly");
+		
+		initCacheData(2, tg);
+		
+		final Filter tickerFilter = tickerFilter(tg, 1);
+		final Filter sideFilter = sideFilter(tg, 1);
+		final Filter compositeFilter = tickerAndSideFilter(tg, 1);
+
+		final Filter tickerAndSideFilter = new AndFilter(tickerFilter, sideFilter);
+		
+		cloud.node("client").exec(new Callable<Void>() {
+			@Override
+			public Void call() throws Exception {
+				NamedCache cache = CacheFactory.getCache("data");
+				System.out.println("Cache size: " + cache.size());
+
+				long time;
+				time = calculate_query_time(tickerAndSideFilter);
+				System.out.println("Exec time for [tickerAndSideFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				time = calculate_query_time(compositeFilter);
+				System.out.println("Exec time for [compositeFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				
+				cache.addIndex(new ReflectionExtractor("getTicker"), false, null);
+				cache.addIndex(new ReflectionExtractor("getSide"), false, null);
+				cache.addIndex(ticketAndSideExtractor(), false, null);
+
+				time = calculate_query_time(tickerAndSideFilter);
+				System.out.println("Exec time for [tickerAndSideFilter] , all indexes - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				time = calculate_query_time(compositeFilter);
+				System.out.println("Exec time for [compositeFilter] , all indexes - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				return null;
+			}
+		});
+	}	
 	
 	private InFilter tagFilter(TestDataGenerator tg, long seed, int size) {
 		Random rnd = new Random(seed);
@@ -227,6 +285,21 @@ public class FilterPerformanceMicrobench {
 	private EqualsFilter tickerFilter(TestDataGenerator tg, long seed) {
 		Random rnd = new Random(seed);
 		return new EqualsFilter("getTicker", tg.getRandomTerm(rnd, "TICKER"));
+	}
+
+	private static ValueExtractor ticketAndSideExtractor() {
+		return new MultiExtractor(new ValueExtractor[]{new ReflectionExtractor("getTicker"), new ReflectionExtractor("getSide")});
+	}
+	
+	private Filter tickerAndSideFilter(TestDataGenerator tg, long seed) {
+		Random rnd = new Random(seed);
+		String ticker = tg.getRandomTerm(rnd, "TICKER");
+		String side = tg.getRandomTerm(rnd, "SIDE");
+		
+		MultiExtractor tickerAndSideExtractor = new MultiExtractor(new ValueExtractor[]{new ReflectionExtractor("getTicker"), new ReflectionExtractor("getSide")});
+		Filter filter = new EqualsFilter(tickerAndSideExtractor, Arrays.asList(ticker, side)); 
+		
+		return filter;
 	}
 	
 	public static long calculate_query_time(Filter filter) {

@@ -27,6 +27,11 @@
             <class-name>org.gridkit.coherence.search.bench.TradeData</class-name>
         </user-type>
 
+        <user-type>
+            <type-id>1002</type-id>
+            <class-name>org.gridkit.coherence.misc.filter.NoIndexFilter</class-name>
+        </user-type>
+
     </user-type-list>
 
     <allow-interfaces>true</allow-interfaces>
