@@ -116,7 +116,7 @@ public class FilterPerformanceMicrobench {
 	}
 
 	@Test
-	public void verify_negative_vs_index_impact() throws InterruptedException, ExecutionException {
+	public void verify_negative_index_impact() throws InterruptedException, ExecutionException {
 		TestDataGenerator tg = configureGenerator(1000000);
 		JvmProps.addJvmArg(cloud.node("storage-*"), "|-Xmx1024m|-Xms1024m|-XX:+UseConcMarkSweepGC");
 		
@@ -162,6 +162,54 @@ public class FilterPerformanceMicrobench {
 		});
 	}
 
+	
+	@Test
+	public void verify_no_index_hint_impact() throws InterruptedException, ExecutionException {
+		TestDataGenerator tg = configureGenerator(1000000);
+		JvmProps.addJvmArg(cloud.node("storage-*"), "|-Xmx1024m|-Xms1024m|-XX:+UseConcMarkSweepGC");
+		
+		initCacheData(2, tg);
+		
+		final Filter tickerFilter = tickerFilter(tg, 1);
+		final Filter sideFilter = sideFilter(tg, 1);
+
+		final Filter sideAndTickerFilter = new AndFilter(sideFilter, tickerFilter);
+		final Filter tickerAndSideFilter = new AndFilter(tickerFilter, sideFilter);
+		
+		cloud.node("client").exec(new Callable<Void>() {
+			@Override
+			public Void call() throws Exception {
+				NamedCache cache = CacheFactory.getCache("data");
+				System.out.println("Cache size: " + cache.size());
+
+				long time;
+				time = calculate_query_time(sideAndTickerFilter);
+				System.out.println("Exec time for [sideAndTickerFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				time = calculate_query_time(tickerAndSideFilter);
+				System.out.println("Exec time for [tickerAndSideFilter] no index - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				
+				cache.addIndex(new ReflectionExtractor("getTag"), false, null);
+
+				time = calculate_query_time(sideAndTickerFilter);
+				System.out.println("Exec time for [sideAndTickerFilter] , index by tag - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				time = calculate_query_time(tickerAndSideFilter);
+				System.out.println("Exec time for [tickerAndSideFilter] , index by tag - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				cache.addIndex(new ReflectionExtractor("getSide"), false, null);
+				
+				time = calculate_query_time(sideAndTickerFilter);
+				System.out.println("Exec time for [sideAndTickerFilter] , index by tag & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+				
+				time = calculate_query_time(tickerAndSideFilter);
+				System.out.println("Exec time for [tickerAndSideFilter] , index by tag & side - " + 0.001 * TimeUnit.NANOSECONDS.toMicros(time));
+
+				return null;
+			}
+		});
+	}
+	
 	private InFilter tagFilter(TestDataGenerator tg, long seed, int size) {
 		Random rnd = new Random(seed);
 		HashSet<String> terms = new HashSet<String>();
@@ -174,6 +222,11 @@ public class FilterPerformanceMicrobench {
 	private EqualsFilter sideFilter(TestDataGenerator tg, long seed) {
 		Random rnd = new Random(seed);
 		return new EqualsFilter("getSide", tg.getRandomTerm(rnd, "SIDE"));
+	}
+
+	private EqualsFilter tickerFilter(TestDataGenerator tg, long seed) {
+		Random rnd = new Random(seed);
+		return new EqualsFilter("getTicker", tg.getRandomTerm(rnd, "TICKER"));
 	}
 	
 	public static long calculate_query_time(Filter filter) {
