@@ -23,7 +23,7 @@
     <parent>
         <groupId>org.gridkit.coherence-tools</groupId>
         <artifactId>coherence-tools-parent-pom</artifactId>
-        <version>1</version>
+        <version>2</version>
     </parent>
 
     <groupId>org.gridkit.coherence-search</groupId>
