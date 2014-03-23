@@ -40,11 +40,26 @@ public class TrieNGramIndex extends AbstractNGramIndex {
     }
 
     protected int seekTerm(int term) {
-        throw new Error("Not implemented");
+        long itkn = itnk(term, 0);
+        long r = invertedMap.getCeil(itkn);
+        if (r == ~itkn) {
+            return -1;
+        }
+        else {
+            return itknToTerm(r);
+        }
     }
     
 	protected int seekTermRow(int term, int rowId) {
-	    throw new Error("Not implemented");
+	    long itkn = itnk(term, rowId);
+	    long r = invertedMap.getCeil(itkn);
+	    int rt = itknToTerm(r);
+	    if (rt == term) {
+	        return itknToRowId(r);
+	    }
+	    else {
+	        return -1;
+	    }
 	}
 
 	protected boolean imapContains(int term, int row) {

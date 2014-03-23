@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.Random;
 
 import org.junit.Assert;
-
 import org.junit.Test;
 
 public class PrefixBitTrieTest {
@@ -240,6 +239,75 @@ public class PrefixBitTrieTest {
 	}
 
 	@Test
+	public void verify_ceil_floor_16x4() {
+	    trie = new PrefixBitTrie(16, 4, 4);
+	    
+	    Assert.assertEquals(0, trie.size());
+	    Assert.assertEquals(-1, ceil16x4(10));
+	    Assert.assertEquals(-1, floor16x4(10));
+
+	    put16x4(1000, 1);
+
+	    Assert.assertEquals(1, trie.size());
+	    Assert.assertEquals(1000, ceil16x4(0));
+	    Assert.assertEquals(1000, ceil16x4(10));
+	    Assert.assertEquals(1000, ceil16x4(100));
+	    Assert.assertEquals(1000, ceil16x4(999));
+	    Assert.assertEquals(1000, ceil16x4(1000));
+	    Assert.assertEquals(-1, ceil16x4(1001));
+	    Assert.assertEquals(-1, ceil16x4(2000));
+	    Assert.assertEquals(1000, floor16x4(2000));
+	    Assert.assertEquals(1000, floor16x4(1900));
+	    Assert.assertEquals(1000, floor16x4(1010));
+	    Assert.assertEquals(1000, floor16x4(1001));
+	    Assert.assertEquals(1000, floor16x4(1000));
+	    Assert.assertEquals(-1, floor16x4(999));
+	    Assert.assertEquals(-1, floor16x4(500));
+
+	    put16x4(1001, 1);
+	    
+	    Assert.assertEquals(2, trie.size());
+	    Assert.assertEquals(1000, ceil16x4(0));
+	    Assert.assertEquals(1000, ceil16x4(10));
+	    Assert.assertEquals(1000, ceil16x4(100));
+	    Assert.assertEquals(1000, ceil16x4(999));
+	    Assert.assertEquals(1000, ceil16x4(1000));
+	    Assert.assertEquals(1001, ceil16x4(1001));
+	    Assert.assertEquals(-1, ceil16x4(1002));
+	    Assert.assertEquals(-1, ceil16x4(2000));
+	    Assert.assertEquals(1001, floor16x4(2000));
+	    Assert.assertEquals(1001, floor16x4(1900));
+	    Assert.assertEquals(1001, floor16x4(1010));
+	    Assert.assertEquals(1001, floor16x4(1002));
+	    Assert.assertEquals(1001, floor16x4(1001));
+	    Assert.assertEquals(1000, floor16x4(1000));
+	    Assert.assertEquals(-1, floor16x4(999));
+	    Assert.assertEquals(-1, floor16x4(500));
+
+	    put16x4(2000, 1);
+
+	    Assert.assertEquals(3, trie.size());
+	    Assert.assertEquals(1000, ceil16x4(0));
+	    Assert.assertEquals(1000, ceil16x4(10));
+	    Assert.assertEquals(1000, ceil16x4(100));
+	    Assert.assertEquals(1000, ceil16x4(999));
+	    Assert.assertEquals(1000, ceil16x4(1000));
+	    Assert.assertEquals(1001, ceil16x4(1001));
+	    Assert.assertEquals(2000, ceil16x4(1002));
+	    Assert.assertEquals(2000, ceil16x4(2000));
+	    Assert.assertEquals(-1, ceil16x4(2001));
+	    Assert.assertEquals(2000, floor16x4(3000));
+	    Assert.assertEquals(2000, floor16x4(2000));
+	    Assert.assertEquals(1001, floor16x4(1900));
+	    Assert.assertEquals(1001, floor16x4(1010));
+	    Assert.assertEquals(1001, floor16x4(1002));
+	    Assert.assertEquals(1001, floor16x4(1001));
+	    Assert.assertEquals(1000, floor16x4(1000));
+	    Assert.assertEquals(-1, floor16x4(999));
+	    Assert.assertEquals(-1, floor16x4(500));
+	}
+
+	@Test
 	public void slot_relocation_test_16x4() {
 		trie = new PrefixBitTrie(16, 4, 4);
 
@@ -267,6 +335,18 @@ public class PrefixBitTrieTest {
 			}
 
 			@Override
+            int ceil(int key) {
+                return ceil16x4(key);
+            }
+
+
+
+            @Override
+            int floor(int key) {
+                return floor16x4(key);
+            }
+
+            @Override
 			int put(int key, int val) {
 				return put16x4(key, val);
 			}
@@ -294,6 +374,16 @@ public class PrefixBitTrieTest {
 				return get60x4(key);
 			}
 
+            @Override
+            int ceil(int key) {
+                return ceil60x4(key);
+            }
+
+            @Override
+            int floor(int key) {
+                return floor60x4(key);
+            }
+
 			@Override
 			int put(int key, int val) {
 				return put60x4(key, val);
@@ -317,12 +407,27 @@ public class PrefixBitTrieTest {
 
 		RandomVerification verificator = new RandomVerification() {
 			
+		    {
+		        // scrambling is not monotonous
+		        checkCeilFloor = false;
+		    }
+		    
 			@Override
 			int get(int key) {
 				return get60x4(scramble(key));
 			}
 
 			@Override
+            int ceil(int key) {
+                return ceil60x4(scramble(key));
+            }
+
+            @Override
+            int floor(int key) {
+                return floor60x4(scramble(key));
+            }
+
+            @Override
 			int put(int key, int val) {
 				return put60x4(scramble(key), val);
 			}
@@ -356,6 +461,32 @@ public class PrefixBitTrieTest {
 		else {
 			return (int)(0xF & r);
 		}
+	}
+
+	protected int ceil16x4(int key) {
+	    ++ops;
+	    long tkn = ((long)key) << 4;
+	    long r = trie.getCeil(tkn);
+	    if (r < 0) {
+	        return -1;
+	    }
+	    else {
+	        Assert.assertEquals(r, trie.get(r));
+	        return (int)(r >> 4);
+	    }
+	}
+
+	protected int floor16x4(int key) {
+	    ++ops;
+	    long tkn = ((long)key) << 4;
+	    long r = trie.getFloor(tkn);
+	    if (r < 0) {
+	        return -1;
+	    }
+	    else {
+	        Assert.assertEquals(r, trie.get(r));
+	        return (int)(r >> 4);
+	    }
 	}
 
 	protected int put16x4(int key, int val) {
@@ -397,7 +528,33 @@ public class PrefixBitTrieTest {
 		}
 	}
 	
-	protected int put60x4(long key, int val) {
+    protected int ceil60x4(long key) {
+        ++ops;
+        long tkn = ((long)key) << 4;
+        long r = trie.getCeil(tkn);
+        if (r == ~tkn) {
+            return -1;
+        }
+        else {
+            Assert.assertEquals(r, trie.get(r));
+            return (int)(r >> 4);
+        }
+    }
+
+    protected int floor60x4(long key) {
+        ++ops;
+        long tkn = ((long)key) << 4;
+        long r = trie.getFloor(tkn);
+        if (r == ~tkn) {
+            return -1;
+        }
+        else {
+            Assert.assertEquals(r, trie.get(r));
+            return (int)(r >> 4);
+        }
+    }
+
+    protected int put60x4(long key, int val) {
 		++ops;
 		long tkn = ((long)key) << 4 | (0xF & val);
 		long r = trie.getAndPut(tkn);
@@ -430,6 +587,8 @@ public class PrefixBitTrieTest {
 		int verifications = 100;
 		int iterations = 10000;
 		
+		boolean checkCeilFloor = true;
+		
 		public void verify() {
 			byte[] map = new byte[keyRange];
 			Arrays.fill(map, (byte)-1);
@@ -460,6 +619,10 @@ public class PrefixBitTrieTest {
 					for(int j = 0; j != 10; ++j) {
 						n = rnd.nextInt(map.length);
 						Assert.assertEquals(map[n], get(n));
+						if (checkCeilFloor && map[n] < 0) {
+						    Assert.assertEquals(ceil(map, n), ceil(n));
+						    Assert.assertEquals(floor(map, n), floor(n));
+						}
 					}
 				}	
 				
@@ -471,7 +634,29 @@ public class PrefixBitTrieTest {
 			}
 		}
 
-		abstract int get(int key);
+		protected int floor(byte[] map, int n) {
+		    for(int i = n - 1; i >= 0; --i) {
+		        if (map[i] >= 0) {
+		            return i;
+		        }
+		    }
+		    return -1;
+        }
+
+        protected int ceil(byte[] map, int n) {
+            for(int i = n + 1; i < map.length; ++i) {
+                if (map[i] >= 0) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        abstract int get(int key);
+
+		abstract int ceil(int key);
+
+		abstract int floor(int key);
 
 		abstract int put(int key, int val);
 		

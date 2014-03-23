@@ -38,6 +38,9 @@ public abstract class AbstractNGramIndexTest {
 		"",
 	};
 	
+	private long candidates = 0;
+	private long matches = 0;
+	
 	public abstract TextSearchIndex newIndex();
 	
 	@Test
@@ -76,6 +79,9 @@ public abstract class AbstractNGramIndexTest {
 	@Test
 	public void random_correctness_test() {
 		TextSearchIndex idx = newIndex();
+		
+		candidates = 0;
+		matches = 0;
 		
 		String[] tokens = new String[128];
 		Random rnd = new Random(1);
@@ -124,14 +130,18 @@ public abstract class AbstractNGramIndexTest {
 					verifyQuery(idx, table, randomSubstring(text, rnd, 4));
 				}				
 			}
-		}		
+		}	
+		
+		System.out.println(getClass().getSimpleName() + " candidate accuracy: " + (1d * matches / candidates));
 	}
 
 	private void verifyQuery(TextSearchIndex idx, String[] table, String substring) {
 		int[] set = search(idx, substring);
+		candidates += set.length;
 		for(int i = 0; i != table.length; ++i) {
 			if (table[i] != null) {
 				if (idx.evaluate(table[i], substring)) {
+				    matches += 1;
 					if (Arrays.binarySearch(set, i) < 0) {
 						Assert.fail("Not in set: [" + i + "] [" + table[i] + "] - substring [" + substring + "]");
 					}

@@ -15,7 +15,9 @@
  */
 package org.gridkit.coherence.search.fastngram;
 
-
+/**
+ * @author Alexey Ragozin (alexey.ragozin@gmail.com)
+ */
 abstract class PrefixBitTrieAlgo {
 
     protected final int BLANK = 255;
@@ -30,6 +32,9 @@ abstract class PrefixBitTrieAlgo {
 
     /** @return mask for value part of token */
     protected abstract long valueMask();
+
+    /** @return size of value in bits */
+    protected abstract int valueBits();
     
     /** @return depth of radix tree */
     protected abstract int treeDepth();
@@ -73,11 +78,31 @@ abstract class PrefixBitTrieAlgo {
     /** @return read specified position from node */
     protected abstract int nodeGet(int page, int slot, int pos);
 
+    protected int nodeGetNextRef(int page, int slot, int pos, boolean forward) {
+        if (forward) {
+            if (pos == 15) {
+                return -1;
+            }
+            else {
+                return nodeMinIndex(page, slot, pos + 1);
+            }
+        }
+        else {
+            if (pos == 0) {
+                return -1;
+            }
+            else {
+                return nodeMaxIndex(page, slot, pos - 1);
+                
+            }
+        }
+    }
+
     /** Sets specified position of node */
     protected abstract void nodeSet(int page, int slot, int pos, int val8);
 
     /** @return number of non-blank positions */
-    protected abstract int nodePositionsUsed(int page, int slot);
+    protected abstract int nodeOccupancy(int page, int slot);
 
     /** @return whene node is marked as occupied */
     protected abstract boolean isMarkedSlot(int page, int slot);
@@ -119,6 +144,101 @@ abstract class PrefixBitTrieAlgo {
             return ~token;
         }
         return (token & ~valueMask()) | (valueMask() & v);
+    }
+
+    protected long internalGetOrNext(long token, boolean forward) {
+        if (token != (tokenMask() & token)) {
+            throw new IllegalArgumentException("Token out of mask " + Long.toHexString(tokenMask()) + " " + token);
+        }
+        long addr = stageAddress(token, 0);
+        long raddr = 0; // result addr
+        int cpage = 0; // root
+        int cslot = 0; // root
+        int stageLimit = treeDepth() - 1;
+        int rstage = -1; // retry point
+        int rpage = 0; // retry point
+        int rslot = 0; // retry point
+        int stage;
+        for(stage = 0; stage != stageLimit; ++stage) {
+            addr = Long.rotateLeft(addr, STAGE_ROLL);
+            int nplet = (int)(PLET_MASK & addr);
+            raddr = Long.rotateLeft(raddr, STAGE_ROLL) | nplet;
+            int ref = nodeGet(cpage, cslot, nplet);
+            if (nodeGetNextRef(cpage, cslot, nplet, forward) != -1) {
+                rpage = cpage;
+                rslot = cslot;
+                rstage = stage;
+            }
+            if (ref == BLANK) {
+                break;
+            }
+            cpage = getPage(cpage, cslot);
+            cslot = ref;
+        }
+        if (stage == stageLimit) {
+            addr = Long.rotateLeft(addr, STAGE_ROLL);
+            int nplet = (int)(PLET_MASK & addr);
+            raddr = Long.rotateLeft(raddr, STAGE_ROLL) | nplet;
+            int v = nodeGet(cpage, cslot, nplet);
+            if (v != BLANK) {
+                return (token & ~valueMask()) | (valueMask() & v);
+            }
+            // slightly unlucky, let's seek for next entry
+            int next = nodeGetNextRef(cpage, cslot, nplet, forward);
+            if (next >= 0) {
+                raddr = (raddr & ~PLET_MASK) | next;
+                return raddr << valueBits() | (valueMask() & nodeGet(cpage, cslot, next));
+            }
+        }
+        // dramatically out of luck
+        // have to retry search
+        if (rstage < 0) {
+            return ~token;
+        }
+        stage = rstage;
+        cpage = rpage;
+        cslot = rslot;
+        addr = stageAddress(token, stage);
+        raddr = stageAddress(token, stage);
+        if (forward) {
+            addr &= 0xF000000000000000l;
+            addr += 0x1000000000000000l;
+            if (addr >>> 32 < raddr >>> 32) {
+                return ~token;
+            }
+        }
+        else {
+            addr |= 0x0FFFFFFFFFFFFFFFl;
+            addr -= 0x1000000000000000l;
+            if (addr >>> 32 > raddr >>> 32) {
+                return ~token;
+            }
+        }
+        for(; stage != stageLimit; ++stage) {
+            addr = Long.rotateLeft(addr, STAGE_ROLL);
+            int nplet = (int)(PLET_MASK & addr);
+            int pos = forward ? nodeMinIndex(cpage, cslot, nplet) : nodeMaxIndex(cpage, cslot, nplet);
+            if (pos < 0) {
+                return ~token; 
+            }
+            raddr = (Long.rotateLeft(raddr, STAGE_ROLL) & ~PLET_MASK) | pos;
+            int ref = nodeGet(cpage, cslot, pos);
+            if (ref == BLANK) {
+                throw new RuntimeException("Implementation bug");
+            }
+            cpage = getPage(cpage, cslot);
+            cslot = ref;
+        }
+        addr = Long.rotateLeft(addr, STAGE_ROLL);
+        int nplet = (int)(PLET_MASK & addr);
+        int pos = forward ? nodeMinIndex(cpage, cslot, nplet) : nodeMaxIndex(cpage, cslot, nplet);
+        if (pos < 0) {
+            return ~token; 
+        }
+        raddr = (Long.rotateLeft(raddr, STAGE_ROLL) & ~PLET_MASK) | pos;
+        int v = nodeGet(cpage, cslot, pos);
+        // value cannot be undefined
+        return (raddr << valueBits()) | (valueMask() & v);
     }
     
     protected long internalPut(long value, boolean getPrev) {
@@ -182,7 +302,7 @@ abstract class PrefixBitTrieAlgo {
             cpage = getPage(cpage, cslot);
             cslot = ref;
             // remember start begining of thin branch
-            if (nodePositionsUsed(cpage, cslot) == 1) {
+            if (nodeOccupancy(cpage, cslot) == 1) {
                 if (slevel < 0) {
                     slevel = stage;
                     spage = lpage;
@@ -243,7 +363,7 @@ abstract class PrefixBitTrieAlgo {
             System.err.println("Pointer to root");
             return TextTree.t("NULL");
         }
-        int c = nodePositionsUsed(page, slot);
+        int c = nodeOccupancy(page, slot);
         TextTree[] sub = new TextTree[c];
         if (l > 0) {
             int n = 0;
